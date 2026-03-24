@@ -12,9 +12,10 @@ WHITELIST = [
     "trump", "congress", "white house", "debt", "shutdown", "budget",
 ]
 
+# Google News RSS - aggregates Reuters articles
 FEEDS = [
-    "https://feeds.reuters.com/reuters/topNews",
-    "https://feeds.reuters.com/reuters/businessNews",
+    "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en",
+    "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en",
 ]
 
 def is_relevant(title, desc):
@@ -24,23 +25,35 @@ def is_relevant(title, desc):
 articles = []
 seen = set()
 
+headers = {"User-Agent": "Mozilla/5.0"}
+
 for url in FEEDS:
     if len(articles) >= 10:
         break
     try:
-        req = urllib.request.urlopen(url, timeout=15)
-        tree = ET.fromstring(req.read())
+        req = urllib.request.Request(url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=15)
+        tree = ET.fromstring(resp.read())
         channel = tree.find("channel")
         if channel is None:
             continue
         for item in channel.findall("item"):
             title = item.findtext("title", "")
             link = item.findtext("link", "")
-            desc = item.findtext("description", "")
+            desc = item.findtext("description", "") or ""
             pub_date = item.findtext("pubDate", "")
+            source_el = item.find("source")
+            source_name = source_el.text if source_el is not None else ""
+            source_url = source_el.get("url", "") if source_el is not None else ""
+
+            # Only keep Reuters articles
+            if "reuters" not in source_url.lower() and "reuters" not in source_name.lower():
+                continue
+
             if link in seen:
                 continue
             seen.add(link)
+
             if is_relevant(title, desc):
                 articles.append({
                     "source": "Reuters",
